@@ -62,6 +62,19 @@ footer{font-size:12px;color:#73818a;text-align:center;padding:18px}
 <script>
 const $=s=>document.querySelector(s); let files=[];
 const fmt=n=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(1)} KB`:`${(n/1048576).toFixed(2)} MB`;
+function nextPdfFilename(){
+ const now=new Date();
+ const yyyy=String(now.getFullYear());
+ const mm=String(now.getMonth()+1).padStart(2,"0");
+ const dd=String(now.getDate()).padStart(2,"0");
+ const date=`${yyyy}.${mm}.${dd}`;
+ const key=`photoPdfDailySaveCount:${date}`;
+ let count=0;
+ try{count=Number(localStorage.getItem(key))||0;}catch(e){}
+ count+=1;
+ try{localStorage.setItem(key,String(count));}catch(e){}
+ return `${date}_${String(count).padStart(3,"0")}.pdf`;
+}
 function refresh(){
  const box=$("#items");box.innerHTML="";
  $("#stockCount").textContent=`写真ストック：${files.length}枚`;
@@ -141,7 +154,7 @@ $("#make").onclick=async()=>{
   const targetBytes=500*1024*files.length;
   const result=await buildUnderTarget(paper,edge,targetBytes);
   const url=URL.createObjectURL(result.blob),a=document.createElement("a");
-  a.href=url;a.download=`photo_${new Date().toISOString().slice(0,10)}_500KB_per_photo.pdf`;
+  a.href=url;a.download=nextPdfFilename();
   document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
   const achieved=result.blob.size<=targetBytes*1.04;
   const averagePerPhoto=result.blob.size/files.length;

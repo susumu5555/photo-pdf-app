@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#142b3b">\n<link rel="manifest" href="./manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="写真PDFメーカー">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+
+<title>写真PDFメーカー</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;color:#172b3a;background:#f3f6f8}
+*{box-sizing:border-box}body{margin:0;padding:20px}.app{max-width:780px;margin:auto}
+header{padding:22px 4px 14px}h1{font-size:26px;margin:0 0 6px}.sub{color:#60717d;font-size:14px}
+.panel{background:white;border:1px solid #dce5ea;border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 3px 14px #1834490a}
+.drop{border:2px dashed #9aadb9;border-radius:13px;padding:28px 12px;text-align:center;background:#f9fbfc}
+button,.filebtn{border:0;border-radius:10px;padding:12px 16px;font-weight:700;background:#17384d;color:white;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#eaf0f4;color:#17384d}.danger{background:#fff0ef;color:#a32d25}
+input[type=file]{display:none}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row>*{flex:1}
+label{font-size:14px;font-weight:650;display:block;margin:14px 0 6px}
+input[type=range]{width:100%}select{width:100%;padding:10px;border:1px solid #cbd7df;border-radius:9px;background:white}
+.small{font-size:12px;color:#687984}.status{margin-top:12px;padding:12px;border-radius:10px;background:#edf5f8;font-size:13px;white-space:pre-wrap}
+.items{display:grid;gap:9px;margin-top:12px}.item{display:flex;align-items:center;gap:12px;border:1px solid #e0e7eb;border-radius:10px;padding:8px}
+.thumb{width:66px;height:66px;object-fit:cover;border-radius:7px;background:#eef2f4}.name{font-size:13px;overflow-wrap:anywhere;flex:1}
+.item button{padding:7px 10px}.privacy{display:flex;gap:9px;align-items:flex-start;color:#285b43;font-size:13px}
+footer{font-size:12px;color:#73818a;text-align:center;padding:18px}
+@media(max-width:520px){body{padding:12px}.panel{padding:14px}h1{font-size:22px}.row button,.row .filebtn{min-width:100%}}
+</style></head>
+<body><main class="app">
+<header><h1>写真PDFメーカー</h1><div class="sub">写真を選ぶだけ。端末内でPDF化・自動圧縮。</div></header>
+<section class="panel">
+<div class="privacy"><span>🔒</span><span><b>プライバシー優先</b><br>選んだ写真はこの端末のブラウザー内で処理します。サーバーへのアップロード機能はありません。</span></div>
+</section>
+<section class="panel">
+<div class="drop"><div style="font-size:34px">📷</div><b>写真を撮影・追加</b><p class="small">撮影するか、端末内の写真を複数選択できます。</p>
+<div class="row" style="justify-content:center;margin-top:10px">
+ <label class="filebtn" for="camera" style="display:inline-block;margin:0">📷 写真を撮る</label>
+ <label class="filebtn secondary" for="files" style="display:inline-block;margin:0">🖼️ 写真を選ぶ</label>
+</div>
+<input id="camera" type="file" accept="image/*" capture="environment">
+<input id="files" type="file" accept="image/*" multiple>
+</div>
+<div class="row" style="margin-top:14px;align-items:center">
+ <b id="stockCount">写真ストック：0枚</b><span class="small">追加した写真はPDF作成まで保持されます</span>
+</div>
+<div id="items" class="items"></div>
+<div class="row" style="margin-top:12px"><button id="clear" class="secondary" disabled>すべて削除</button><button id="make" disabled>PDFを作成・圧縮</button></div>
+</section>
+<section class="panel">
+<b>固定設定</b>
+<div class="row" style="margin-top:12px">
+ <div class="panel" style="margin:0;background:#f4f8fa"><b>用紙サイズ</b><div style="font-size:20px;margin-top:5px">2L判</div><div class="small">127 × 178 mm</div></div>
+ <div class="panel" style="margin:0;background:#f4f8fa"><b>圧縮目標</b><div style="font-size:20px;margin-top:5px">1枚 約500KB</div><div class="small">枚数に応じて合計容量を拡大</div></div>
+</div>
+<div class="panel" style="margin:12px 0 0;background:#f4f8fa"><b>画像サイズ</b><div style="font-size:20px;margin-top:5px">最大辺 1,600px</div><div class="small">画質向上・固定</div></div>
+<p class="small">設定変更は不要です。写真を選んで「PDFを作成・圧縮」を押してください。写真1枚あたり約500KBを目標にします。3枚なら合計約1,500KBです。枚数に応じてPDF全体の目標容量を自動計算します。</p>
+<div id="status" class="status" aria-live="polite">「写真を撮る」または「写真を選ぶ」から追加してください。</div>
+</section>
+<footer>オフライン利用を想定した単体HTMLアプリ。写真・PDFを外部へ送信しません。</footer>
+</main>
+<script>
+const $=s=>document.querySelector(s); let files=[];
+const fmt=n=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(1)} KB`:`${(n/1048576).toFixed(2)} MB`;
+function refresh(){
+ const box=$("#items");box.innerHTML="";
+ $("#stockCount").textContent=`写真ストック：${files.length}枚`;
+ files.forEach((f,i)=>{const u=URL.createObjectURL(f);const d=document.createElement("div");d.className="item";
+ const im=document.createElement("img");im.className="thumb";im.src=u;
+ const name=document.createElement("div");name.className="name";name.textContent=`${i+1}. ${f.name} · ${fmt(f.size)}`;
+ const up=document.createElement("button");up.className="secondary";up.textContent="↑";up.disabled=i===0;up.onclick=()=>{[files[i-1],files[i]]=[files[i],files[i-1]];refresh()};
+ const down=document.createElement("button");down.className="secondary";down.textContent="↓";down.disabled=i===files.length-1;down.onclick=()=>{[files[i+1],files[i]]=[files[i],files[i+1]];refresh()};
+ const del=document.createElement("button");del.className="danger";del.textContent="削除";del.onclick=()=>{files.splice(i,1);refresh()};
+ d.append(im,name,up,down,del);box.append(d)});
+ $("#make").disabled=!files.length;$("#clear").disabled=!files.length;
+}
+function addSelectedPhotos(fileList){
+ const added=Array.from(fileList||[]).filter(f=>f.type.startsWith("image/"));
+ if(!added.length)return;
+ files.push(...added);refresh();
+ $("#status").textContent=`${added.length}枚を追加しました。現在 ${files.length}枚をストックしています。`;
+}
+$("#files").addEventListener("change",e=>{addSelectedPhotos(e.target.files);e.target.value="";});
+$("#camera").addEventListener("change",e=>{addSelectedPhotos(e.target.files);e.target.value="";});
+$("#clear").onclick=()=>{files=[];refresh();$("#status").textContent="写真を追加してください。"};
+
+const enc=s=>new TextEncoder().encode(s);
+function join(parts){let n=parts.reduce((a,b)=>a+b.length,0),o=new Uint8Array(n),p=0;for(const b of parts){o.set(b,p);p+=b.length}return o}
+function pdfFromJpegs(imgs,paper){
+ const dims={"2L":[360,504.57]};
+ const objs=[null,null]; let kids=[];
+ imgs.forEach((im,i)=>{
+  const [pw0,ph0]=dims[paper],land=im.w/im.h>1.15,pw=land?ph0:pw0,ph=land?pw0:ph0;
+  const scale=Math.min(pw/im.w,ph/im.h),w=im.w*scale,h=im.h*scale,x=(pw-w)/2,y=(ph-h)/2;
+  const pageId=3+i*3,imgId=pageId+1,contentId=pageId+2;kids.push(`${pageId} 0 R`);
+  objs[pageId]=enc(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw.toFixed(2)} ${ph.toFixed(2)}] /Resources << /ProcSet [/PDF /ImageC] /XObject << /Im0 ${imgId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+  objs[imgId]=join([enc(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`),im.data,enc("\nendstream")]);
+  const stream=enc(`q\n${w.toFixed(3)} 0 0 ${h.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm\n/Im0 Do\nQ\n`);
+  objs[contentId]=join([enc(`<< /Length ${stream.length} >>\nstream\n`),stream,enc("endstream")]);
+ });
+ objs[1]=enc("<< /Type /Catalog /Pages 2 0 R >>");
+ objs[2]=enc(`<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${kids.length} >>`);
+ const parts=[enc("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")],offsets=[0];let pos=parts[0].length;
+ for(let i=1;i<objs.length;i++){offsets[i]=pos;const a=join([enc(`${i} 0 obj\n`),objs[i],enc("\nendobj\n")]);parts.push(a);pos+=a.length}
+ const xref=pos;let xr=`xref\n0 ${objs.length}\n0000000000 65535 f \n`;for(let i=1;i<objs.length;i++)xr+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+ parts.push(enc(xr+`trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));return new Blob([join(parts)],{type:"application/pdf"});
+}
+async function imageToJpeg(file,maxEdge,quality){
+ const bmp=await createImageBitmap(file);const ratio=Math.min(1,maxEdge/Math.max(bmp.width,bmp.height));
+ const w=Math.max(1,Math.round(bmp.width*ratio)),h=Math.max(1,Math.round(bmp.height*ratio));
+ const c=document.createElement("canvas");c.width=w;c.height=h;const ctx=c.getContext("2d",{alpha:false});
+ ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.drawImage(bmp,0,0,w,h);bmp.close?.();
+ const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error("画像の変換に失敗しました")), "image/jpeg",quality));
+ return {w,h,data:new Uint8Array(await blob.arrayBuffer()),original:file.size};
+}
+async function buildUnderTarget(paper, maxEdge, targetBytes){
+ const qualities=[0.95,0.90,0.85,0.80,0.75,0.70,0.65,0.60,0.55,0.50,0.45,0.40,0.35,0.30,0.25,0.20];
+ let best=null, attempts=0;
+ for(const quality of qualities){
+  attempts++;
+  $("#status").textContent=`1枚約500KBを目標に調整中… ${attempts}/${qualities.length}回目\n写真：${files.length}枚 / PDF目標：約${Math.round(targetBytes/1024)}KB\n画像最大辺：${maxEdge}px / 画質：${Math.round(quality*100)}%`;
+  const imgs=[];
+  for(let i=0;i<files.length;i++){
+   const im=await imageToJpeg(files[i],maxEdge,quality);imgs.push(im);
+  }
+  const blob=pdfFromJpegs(imgs,paper);
+  if(!best || Math.abs(blob.size-targetBytes)<Math.abs(best.blob.size-targetBytes)){
+   best={blob,edge:maxEdge,quality};
+  }
+  // 520KB以内なら、その中で最も高い画質の設定を採用
+  if(blob.size<=targetBytes*1.04) return {...best,met:true,attempts};
+ }
+ return {...best,met:false,attempts};
+}
+$("#make").onclick=async()=>{
+ if(!files.length)return;
+ $("#make").disabled=true;
+ try{
+  const paper="2L",edge=1600;
+  const original=files.reduce((s,f)=>s+f.size,0);
+  const targetBytes=500*1024*files.length;
+  const result=await buildUnderTarget(paper,edge,targetBytes);
+  const url=URL.createObjectURL(result.blob),a=document.createElement("a");
+  a.href=url;a.download=`photo_${new Date().toISOString().slice(0,10)}_500KB_per_photo.pdf`;
+  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  const achieved=result.blob.size<=targetBytes*1.04;
+  const averagePerPhoto=result.blob.size/files.length;
+  $("#status").textContent=
+   `${achieved?"目標達成：写真1枚あたり約500KBに収まりました。":"注意：目標容量に収まりませんでした。最も近い容量のPDFを作成しました。"}\n`+
+   `写真枚数：${files.length}枚\n1枚あたりの目安：${fmt(averagePerPhoto)}\n元写真合計：${fmt(original)}\nPDF合計容量：${fmt(result.blob.size)}\n目標合計容量：約${Math.round(targetBytes/1024)}KB\n`+
+   `適用画質：${Math.round(result.quality*100)}%\n画像最大辺：${result.edge}px\n`+
+   `試行回数：${result.attempts}\n\n`+
+   (achieved?"PDFを保存しました。":"写真の枚数・内容によっては500KB前後にできない場合があります。写真を分割すると画質を保ちやすくなります。");
+ }catch(e){
+  $("#status").textContent="処理できませんでした："+(e.message||e)+"\nHEICなど、ブラウザーが直接読み込めない形式はJPG/PNGに変換してからお試しください。";
+ }finally{$("#make").disabled=!files.length;}
+};
+</script><script>
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(err => console.warn("PWA登録に失敗:", err));
+  });
+}
+</script>
+</body></html>

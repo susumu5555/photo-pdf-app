@@ -153,9 +153,29 @@ $("#make").onclick=async()=>{
   const original=files.reduce((s,f)=>s+f.size,0);
   const targetBytes=500*1024*files.length;
   const result=await buildUnderTarget(paper,edge,targetBytes);
-  const url=URL.createObjectURL(result.blob),a=document.createElement("a");
-  a.href=url;a.download=nextPdfFilename();
-  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  const pdfFilename=nextPdfFilename();
+  const pdfFile=new File([result.blob],pdfFilename,{type:"application/pdf"});
+  const isAppleMobile=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  let saveMessage="";
+
+  if(isAppleMobile && navigator.share && navigator.canShare && navigator.canShare({files:[pdfFile]})){
+   try{
+    await navigator.share({files:[pdfFile],title:pdfFilename});
+    saveMessage="\n\niPhoneの共有メニューを開きました。「ファイルに保存」を選び、保存先を指定してください。";
+   }catch(shareError){
+    if(shareError.name==="AbortError"){
+     saveMessage="\n\n共有メニューが閉じられました。PDFはまだ保存されていない可能性があります。もう一度作成して「ファイルに保存」を選んでください。";
+    }else{
+     const url=URL.createObjectURL(result.blob),a=document.createElement("a");
+     a.href=url;a.download=pdfFilename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+     saveMessage="\n\niPhoneの共有保存が利用できなかったため、Safariのダウンロード方式に切り替えました。";
+    }
+   }
+  }else{
+   const url=URL.createObjectURL(result.blob),a=document.createElement("a");
+   a.href=url;a.download=pdfFilename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+   saveMessage="\n\nPDFのダウンロードを開始しました。保存先はブラウザーの設定に従います。";
+  }
   const achieved=result.blob.size<=targetBytes*1.04;
   const averagePerPhoto=result.blob.size/files.length;
   $("#status").textContent=
@@ -163,7 +183,7 @@ $("#make").onclick=async()=>{
    `写真枚数：${files.length}枚\n1枚あたりの目安：${fmt(averagePerPhoto)}\n元写真合計：${fmt(original)}\nPDF合計容量：${fmt(result.blob.size)}\n目標合計容量：約${Math.round(targetBytes/1024)}KB\n`+
    `適用画質：${Math.round(result.quality*100)}%\n画像最大辺：${result.edge}px\n`+
    `試行回数：${result.attempts}\n\n`+
-   (achieved?"PDFを保存しました。":"写真の枚数・内容によっては500KB前後にできない場合があります。写真を分割すると画質を保ちやすくなります。");
+   (achieved?"PDFを作成しました。":"写真の枚数・内容によっては500KB前後にできない場合があります。写真を分割すると画質を保ちやすくなります。")+saveMessage;
  }catch(e){
   $("#status").textContent="処理できませんでした："+(e.message||e)+"\nHEICなど、ブラウザーが直接読み込めない形式はJPG/PNGに変換してからお試しください。";
  }finally{$("#make").disabled=!files.length;}

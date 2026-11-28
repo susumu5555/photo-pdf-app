@@ -61,6 +61,26 @@ footer{font-size:12px;color:#73818a;text-align:center;padding:18px}
 </main>
 <script>
 const $=s=>document.querySelector(s); let files=[];
+const launchParams=new URLSearchParams(location.search);
+const linkedProjectId=launchParams.get('projectId')||'';
+const returnUrlParam=launchParams.get('returnUrl')||'';
+async function savePdfForFieldReturn(blob,fileName){
+ const target=new URL(returnUrlParam,location.href);
+ if(target.origin!==location.origin||!target.pathname.endsWith('/field-register.html')||target.searchParams.get('projectId')!==linkedProjectId||target.searchParams.get('page')!=='ledger')throw Error('戻り先URLを確認できません');
+ const db=await new Promise((resolve,reject)=>{
+  const req=indexedDB.open('genbaProjectPdfs',1);
+  req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('pdfs'))req.result.createObjectStore('pdfs',{keyPath:'id'});};
+  req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+ });
+ const recordId='pdf_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+ const record={id:recordId,projectId:linkedProjectId,fileName,createdAt:new Date().toISOString(),size:blob.size,sizeLabel:fmt(blob.size),blob};
+ await new Promise((resolve,reject)=>{
+  const tx=db.transaction('pdfs','readwrite');tx.objectStore('pdfs').put(record);
+  tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+ });
+ localStorage.setItem('genbaPhotoPdfReturn_v1',JSON.stringify({recordId,projectId:linkedProjectId,fileName}));
+ location.replace(target.href);
+}
 const fmt=n=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(1)} KB`:`${(n/1048576).toFixed(2)} MB`;
 function nextPdfFilename(){
  const now=new Date();
@@ -155,6 +175,15 @@ $("#make").onclick=async()=>{
   const result=await buildUnderTarget(paper,edge,targetBytes);
   const pdfFilename=nextPdfFilename();
   const pdfFile=new File([result.blob],pdfFilename,{type:"application/pdf"});
+  if(linkedProjectId&&returnUrlParam){
+   try{
+    await savePdfForFieldReturn(result.blob,pdfFilename);
+    return;
+   }catch(returnError){
+    console.warn('現場画面への復帰連携に失敗しました',returnError);
+    $('#status').textContent='現場画面への自動復帰に失敗しました。通常のPDF保存を続けます。';
+   }
+  }
   const isAppleMobile=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
   let saveMessage="";
 

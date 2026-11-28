@@ -64,6 +64,7 @@ const $=s=>document.querySelector(s); let files=[];
 const launchParams=new URLSearchParams(location.search);
 const linkedProjectId=launchParams.get('projectId')||'';
 const returnUrlParam=launchParams.get('returnUrl')||'';
+const linkedPdfCategory=launchParams.get('pdfCategory')||'unclassified';
 async function savePdfForFieldReturn(blob,fileName){
  const target=new URL(returnUrlParam,location.href);
  if(target.origin!==location.origin||!target.pathname.endsWith('/field-register.html')||target.searchParams.get('projectId')!==linkedProjectId||target.searchParams.get('page')!=='ledger')throw Error('戻り先URLを確認できません');
@@ -73,12 +74,12 @@ async function savePdfForFieldReturn(blob,fileName){
   req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
  });
  const recordId='pdf_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
- const record={id:recordId,projectId:linkedProjectId,fileName,createdAt:new Date().toISOString(),size:blob.size,sizeLabel:fmt(blob.size),blob};
+ const record={id:recordId,projectId:linkedProjectId,category:['report','support'].includes(linkedPdfCategory)?linkedPdfCategory:'unclassified',fileName,createdAt:new Date().toISOString(),size:blob.size,sizeLabel:fmt(blob.size),blob};
  await new Promise((resolve,reject)=>{
   const tx=db.transaction('pdfs','readwrite');tx.objectStore('pdfs').put(record);
   tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
  });
- localStorage.setItem('genbaPhotoPdfReturn_v1',JSON.stringify({recordId,projectId:linkedProjectId,fileName}));
+ localStorage.setItem('genbaPhotoPdfReturn_v1',JSON.stringify({recordId,projectId:linkedProjectId,category:record.category,fileName}));
  location.replace(target.href);
 }
 const fmt=n=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(1)} KB`:`${(n/1048576).toFixed(2)} MB`;
